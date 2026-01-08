@@ -50,23 +50,26 @@ void EcgChartWidget::setupChart()
     
     // 配置X轴
     m_axisX->setRange(0, m_displayDuration);
-    m_axisX->setLabelFormat("%.1f");
+    m_axisX->setLabelFormat("%.2f");
     m_axisX->setTitleText(QStringLiteral("时间 (秒)"));
     m_axisX->setTitleBrush(QBrush(Qt::white));
     m_axisX->setLabelsBrush(QBrush(Qt::white));
     m_axisX->setGridLineColor(m_gridColor);
     m_axisX->setLinePen(QPen(m_gridColor));
+    m_axisX->setTickCount(11);  // 每0.5秒一个刻度 (5秒 / 0.5 + 1)
+    m_axisX->setMinorTickCount(4);  // 次刻度
     m_chart->addAxis(m_axisX, Qt::AlignBottom);
     m_series->attachAxis(m_axisX);
     
-    // 配置Y轴
-    m_axisY->setRange(-2.0, 2.0);
-    m_axisY->setLabelFormat("%.1f");
+    // 配置Y轴 - ADC转换后范围约 -1650mV 到 +1650mV
+    m_axisY->setRange(-500.0, 500.0);  // 默认显示 ±500mV
+    m_axisY->setLabelFormat("%.0f");
     m_axisY->setTitleText(QStringLiteral("电压 (mV)"));
     m_axisY->setTitleBrush(QBrush(Qt::white));
     m_axisY->setLabelsBrush(QBrush(Qt::white));
     m_axisY->setGridLineColor(m_gridColor);
     m_axisY->setLinePen(QPen(m_gridColor));
+    m_axisY->setTickCount(11);  // 每100mV一个刻度
     m_chart->addAxis(m_axisY, Qt::AlignLeft);
     m_series->attachAxis(m_axisY);
     
@@ -197,8 +200,8 @@ void EcgChartWidget::updateAxisRange()
         if (y > maxY) maxY = y;
     }
     
-    double padding = (maxY - minY) * 0.1;
-    if (padding < 0.5) padding = 0.5;
+    double padding = (maxY - minY) * 0.2;
+    if (padding < 50.0) padding = 50.0;  // 最小50mV的边距
     m_axisY->setRange(minY - padding, maxY + padding);
 }
 

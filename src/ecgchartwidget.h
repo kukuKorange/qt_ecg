@@ -47,7 +47,7 @@ private:
     QValueAxis* m_axisY;
     
     int m_displayDuration = 5;  // seconds
-    int m_sampleRate = 250;     // samples per second
+    int m_sampleRate = 200;     // samples per second (20 points per 100ms)
     int m_maxPoints;
     int m_currentIndex = 0;
     

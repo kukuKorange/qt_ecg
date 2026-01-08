@@ -268,13 +268,37 @@ void MqttClient::parseBloodOxygen(const QByteArray& data)
 
 void MqttClient::parseEcgData(const QByteArray& data)
 {
-    QJsonDocument doc = QJsonDocument::fromJson(data);
     QVector<double> ecgData;
+    
+    // ADC转电压参数: 0-4095 ADC值对应 0-3.3V
+    // 以2048(1.65V)为中点，转换为mV单位
+    constexpr double ADC_MAX = 4095.0;
+    constexpr double VREF_MV = 3300.0;  // 3.3V = 3300mV
+    constexpr double ADC_MID = 2048.0;  // 中点值
+    
+    auto adcToMillivolts = [](int adcValue) -> double {
+        // 以中点为零点，转换为mV
+        return (adcValue - ADC_MID) * (VREF_MV / ADC_MAX);
+    };
+    
+    // 首先尝试解析为纯数字（单个ADC值）
+    QString strData = QString::fromUtf8(data).trimmed();
+    bool ok;
+    int singleValue = strData.toInt(&ok);
+    if (ok && singleValue >= 0 && singleValue <= 4095) {
+        // 单个ADC值
+        ecgData.append(adcToMillivolts(singleValue));
+        emit ecgDataReceived(ecgData);
+        return;
+    }
+    
+    // 尝试解析为JSON
+    QJsonDocument doc = QJsonDocument::fromJson(data);
     
     if (doc.isArray()) {
         QJsonArray arr = doc.array();
         for (const QJsonValue& val : arr) {
-            ecgData.append(val.toDouble());
+            ecgData.append(adcToMillivolts(val.toInt()));
         }
     } else if (doc.isObject()) {
         QJsonObject obj = doc.object();
@@ -283,7 +307,7 @@ void MqttClient::parseEcgData(const QByteArray& data)
         if (arr.isEmpty()) arr = obj["values"].toArray();
         
         for (const QJsonValue& val : arr) {
-            ecgData.append(val.toDouble());
+            ecgData.append(adcToMillivolts(val.toInt()));
         }
     }
     
