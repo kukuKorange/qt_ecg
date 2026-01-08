@@ -1,0 +1,11 @@
+{
+    "qtConfigure.qtKitDir": "D:/qt-everywhere-src-6.9.3/qt/6.10.1/mingw_64",
+    "cmake.configureSettings": {
+        "CMAKE_PREFIX_PATH": "D:/qt-everywhere-src-6.9.3/qt/6.10.1/mingw_64",
+        "CMAKE_C_COMPILER": "D:/qt-everywhere-src-6.9.3/qt/Tools/mingw1310_64/bin/gcc.exe",
+        "CMAKE_CXX_COMPILER": "D:/qt-everywhere-src-6.9.3/qt/Tools/mingw1310_64/bin/g++.exe"
+    },
+    "cmake.generator": "Ninja",
+    "cmake.cmakePath": "D:/qt-everywhere-src-6.9.3/qt/Tools/CMake_64/bin/cmake.exe",
+    "cmake.buildDirectory": "${workspaceFolder}/build"
+}

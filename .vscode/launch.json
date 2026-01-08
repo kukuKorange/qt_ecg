@@ -1,0 +1,39 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "QtBuild",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceRoot}",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/qt-everywhere-src-6.9.3/qt/6.10.1/mingw_64/bin;D:/qt-everywhere-src-6.9.3/qt/Tools/mingw1310_64/bin"
+                }
+            ],
+            "externalConsole": false,
+            "miDebuggerPath": "D:/qt-everywhere-src-6.9.3/qt/Tools/mingw1310_64/bin/gdb.exe"
+        },
+        {
+            "name": "Run qt_ecg",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/qt_ecg.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/build",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "D:/qt-everywhere-src-6.9.3/qt/6.10.1/mingw_64/bin;D:/qt-everywhere-src-6.9.3/qt/Tools/mingw1310_64/bin"
+                }
+            ],
+            "externalConsole": false,
+            "miDebuggerPath": "D:/qt-everywhere-src-6.9.3/qt/Tools/mingw1310_64/bin/gdb.exe"
+        }
+    ]
+}

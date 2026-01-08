@@ -1,0 +1,73 @@
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Qt generated files
+*.moc
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*_autogen/
+
+# Compiled object files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+
+# Qt Creator files
+*.pro.user*
+*.qbs.user*
+*.qmlc
+*.jsc
+
+# Visual Studio Code / Cursor
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+*.autosave
+
+# Debug
+*.pdb
+*.ilk
+*.exp
+
+# Qt resource compiler
+*.rcc
+
+# User-specific files
+*.user
+*.suo
+*.ncb
+*.sdf
+*.opensdf
+
+# Database files (app generated)
+*.db
+*.sqlite
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
