@@ -115,7 +115,7 @@ void SettingsDialog::setupUI()
     QGroupBox* mqttConnGroup = new QGroupBox(QStringLiteral("连接设置"));
     QFormLayout* mqttConnLayout = new QFormLayout(mqttConnGroup);
     
-    m_mqttHostEdit = new QLineEdit("localhost");
+    m_mqttHostEdit = new QLineEdit("47.115.148.200");
     m_mqttPortSpin = new QSpinBox();
     m_mqttPortSpin->setRange(1, 65535);
     m_mqttPortSpin->setValue(1883);
@@ -299,7 +299,7 @@ void SettingsDialog::loadSettings()
     QSettings settings("HealthMonitor", "QtECG");
     
     // MQTT设置
-    m_mqttHostEdit->setText(settings.value("mqtt/host", "localhost").toString());
+    m_mqttHostEdit->setText(settings.value("mqtt/host", "47.115.148.200").toString());
     m_mqttPortSpin->setValue(settings.value("mqtt/port", 1883).toInt());
     m_mqttUserEdit->setText(settings.value("mqtt/username", "").toString());
     m_mqttPassEdit->setText(settings.value("mqtt/password", "").toString());
@@ -465,7 +465,7 @@ void SettingsDialog::onResetDefaults()
             QStringLiteral("确定要恢复所有设置为默认值吗？"),
             QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
         
-        m_mqttHostEdit->setText("localhost");
+        m_mqttHostEdit->setText("47.115.148.200");
         m_mqttPortSpin->setValue(1883);
         m_mqttUserEdit->clear();
         m_mqttPassEdit->clear();

@@ -584,7 +584,7 @@ void MainWindow::onConnectClicked()
         m_mqttClient->disconnectFromHost();
     } else {
         QSettings settings("HealthMonitor", "QtECG");
-        QString host = settings.value("mqtt/host", "localhost").toString();
+        QString host = settings.value("mqtt/host", "47.115.148.200").toString();
         quint16 port = settings.value("mqtt/port", 1883).toInt();
         QString username = settings.value("mqtt/username", "").toString();
         QString password = settings.value("mqtt/password", "").toString();
