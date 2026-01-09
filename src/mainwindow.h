@@ -55,9 +55,10 @@ private:
     void updateVitalDisplay(const QString& type, double value, const QString& unit);
     void showAlarmIndicator(bool show);
     
-    QWidget* createVitalCard(const QString& title, const QString& icon, 
-                              const QString& value, const QString& unit,
-                              const QColor& color, QLabel** valueLabel);
+    QWidget* createVitalCard(const QString& title, const QString& value, 
+                              const QString& unit, const QColor& color, 
+                              QLabel** valueLabel);
+    QWidget* createStatusCard();
     QWidget* createSidebar();
     QWidget* createDashboard();
     

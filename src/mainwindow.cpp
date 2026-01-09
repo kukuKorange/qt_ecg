@@ -11,8 +11,10 @@
 #include <QMessageBox>
 #include <QApplication>
 #include <QtMath>
-#include <QGraphicsDropShadowEffect>
 #include <QRandomGenerator>
+#include <QToolBar>
+#include <QStatusBar>
+#include <QScreen>
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
@@ -23,14 +25,12 @@ MainWindow::MainWindow(QWidget* parent)
     , m_updateTimer(new QTimer(this))
     , m_simulationTimer(new QTimer(this))
 {
-    // 初始化数据库
     m_dataManager->initialize();
     
     setupUI();
     setupConnections();
     loadSettings();
     
-    // 启动更新定时器
     m_updateTimer->start(1000);
 }
 
@@ -41,359 +41,303 @@ MainWindow::~MainWindow()
 
 void MainWindow::setupUI()
 {
-    setWindowTitle(QStringLiteral("智能健康监护系统"));
-    setMinimumSize(1400, 900);
+    setWindowTitle(QStringLiteral("健康监护"));
     
-    // 设置深色主题样式
+    // 适配移动端尺寸 (竖屏手机比例)
+    setMinimumSize(360, 640);
+    resize(400, 720);
+    
+    // 简洁深色主题
     QString styleSheet = R"(
-        QMainWindow {
-            background-color: #050d1a;
-        }
-        QWidget {
-            color: white;
+        * {
             font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
         }
-        QScrollArea {
+        QMainWindow, QWidget {
+            background-color: #1a1a2e;
+            color: #eaeaea;
+        }
+        QToolBar {
+            background-color: #16213e;
             border: none;
+            padding: 8px;
+            spacing: 12px;
+        }
+        QToolBar QToolButton {
             background-color: transparent;
-        }
-        QGroupBox {
-            border: 1px solid #1a3a5c;
-            border-radius: 12px;
-            margin-top: 15px;
-            padding: 20px;
-            background-color: #0a1628;
-        }
-        QGroupBox::title {
-            subcontrol-origin: margin;
-            left: 20px;
-            padding: 0 10px;
-            color: #4ecdc4;
-            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 16px;
+            color: #eaeaea;
             font-size: 14px;
         }
+        QToolBar QToolButton:hover {
+            background-color: #1f4068;
+        }
+        QToolBar QToolButton:pressed {
+            background-color: #162447;
+        }
         QPushButton {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #1a4a7c, stop:1 #0d2a4c);
-            border: 1px solid #2a6a9c;
+            background-color: #1f4068;
+            border: none;
             border-radius: 8px;
-            padding: 12px 24px;
+            padding: 14px 20px;
             color: white;
+            font-size: 14px;
             font-weight: bold;
-            font-size: 13px;
         }
         QPushButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #2a5a8c, stop:1 #1a4a6c);
-            border-color: #3a8acc;
+            background-color: #2a5a8c;
         }
         QPushButton:pressed {
-            background: #0d2a4c;
+            background-color: #16213e;
         }
-        QPushButton:disabled {
-            background: #1a2a3c;
-            color: #5a6a7c;
-            border-color: #2a3a4c;
+        QPushButton#connectBtn {
+            background-color: #0f9b6e;
         }
-        QPushButton#connectButton {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #2a8a5c, stop:1 #1a6a4c);
-            border-color: #3aaa7c;
+        QPushButton#connectBtn:hover {
+            background-color: #12b886;
         }
-        QPushButton#connectButton:hover {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #3a9a6c, stop:1 #2a7a5c);
-        }
-        QPushButton#simulateButton {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #8a5a2a, stop:1 #6a4a1a);
-            border-color: #aa7a3a;
-        }
-        QLabel#statusLabel {
-            color: #7a9abc;
+        QStatusBar {
+            background-color: #16213e;
+            color: #8892b0;
             font-size: 12px;
         }
+        QLabel#statusLabel {
+            color: #8892b0;
+        }
     )";
-    
     setStyleSheet(styleSheet);
     
-    // 创建主布局
+    // 创建工具栏
+    QToolBar* toolbar = new QToolBar();
+    toolbar->setMovable(false);
+    toolbar->setIconSize(QSize(24, 24));
+    
+    m_connectButton = new QPushButton(QStringLiteral("连接"));
+    m_connectButton->setObjectName("connectBtn");
+    m_connectButton->setFixedWidth(80);
+    toolbar->addWidget(m_connectButton);
+    
+    toolbar->addSeparator();
+    
+    m_simulateButton = new QPushButton(QStringLiteral("模拟"));
+    m_simulateButton->setFixedWidth(80);
+    toolbar->addWidget(m_simulateButton);
+    
+    QWidget* spacer = new QWidget();
+    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer);
+    
+    m_settingsButton = new QPushButton(QStringLiteral("设置"));
+    m_settingsButton->setFixedWidth(80);
+    toolbar->addWidget(m_settingsButton);
+    
+    m_historyButton = new QPushButton(QStringLiteral("历史"));
+    m_historyButton->setFixedWidth(80);
+    toolbar->addWidget(m_historyButton);
+    
+    addToolBar(Qt::TopToolBarArea, toolbar);
+    
+    // 主内容区
     QWidget* centralWidget = new QWidget();
-    QHBoxLayout* mainLayout = new QHBoxLayout(centralWidget);
-    mainLayout->setSpacing(0);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
+    QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setSpacing(16);
+    mainLayout->setContentsMargins(16, 16, 16, 16);
     
-    // 创建侧边栏
-    QWidget* sidebar = createSidebar();
-    sidebar->setFixedWidth(280);
-    mainLayout->addWidget(sidebar);
+    // 生命体征卡片区域
+    QWidget* vitalsWidget = new QWidget();
+    QGridLayout* vitalsGrid = new QGridLayout(vitalsWidget);
+    vitalsGrid->setSpacing(12);
+    vitalsGrid->setContentsMargins(0, 0, 0, 0);
     
-    // 创建仪表盘
-    QWidget* dashboard = createDashboard();
-    mainLayout->addWidget(dashboard, 1);
+    // 体温卡片
+    QWidget* tempCard = createVitalCard(
+        QStringLiteral("体温"), "--.-", QStringLiteral("°C"),
+        QColor("#e74c3c"), &m_tempValueLabel);
+    vitalsGrid->addWidget(tempCard, 0, 0);
     
-    setCentralWidget(centralWidget);
-}
-
-QWidget* MainWindow::createSidebar()
-{
-    QWidget* sidebar = new QWidget();
-    sidebar->setStyleSheet(R"(
+    // 心率卡片
+    QWidget* hrCard = createVitalCard(
+        QStringLiteral("心率"), "---", QStringLiteral("bpm"),
+        QColor("#3498db"), &m_hrValueLabel);
+    vitalsGrid->addWidget(hrCard, 0, 1);
+    
+    // 血氧卡片
+    QWidget* spo2Card = createVitalCard(
+        QStringLiteral("血氧"), "---", QStringLiteral("%"),
+        QColor("#2ecc71"), &m_spo2ValueLabel);
+    vitalsGrid->addWidget(spo2Card, 1, 0);
+    
+    // 状态卡片
+    QWidget* statusCard = createStatusCard();
+    vitalsGrid->addWidget(statusCard, 1, 1);
+    
+    mainLayout->addWidget(vitalsWidget);
+    
+    // 心电图区域
+    QWidget* ecgContainer = new QWidget();
+    ecgContainer->setStyleSheet(R"(
         QWidget {
-            background-color: #0a1628;
-            border-right: 1px solid #1a3a5c;
+            background-color: #16213e;
+            border-radius: 12px;
         }
     )");
+    QVBoxLayout* ecgLayout = new QVBoxLayout(ecgContainer);
+    ecgLayout->setContentsMargins(12, 8, 12, 12);
+    ecgLayout->setSpacing(4);
     
-    QVBoxLayout* layout = new QVBoxLayout(sidebar);
-    layout->setSpacing(15);
-    layout->setContentsMargins(20, 30, 20, 30);
+    QLabel* ecgTitle = new QLabel(QStringLiteral("心电图"));
+    ecgTitle->setStyleSheet("color: #8892b0; font-size: 13px; font-weight: bold;");
+    ecgLayout->addWidget(ecgTitle);
     
-    // Logo和标题
-    QLabel* titleLabel = new QLabel(QStringLiteral("🏥 智能健康监护"));
-    titleLabel->setStyleSheet(R"(
-        font-size: 20px;
-        font-weight: bold;
-        color: #4ecdc4;
-        padding: 15px 0;
-        border-bottom: 1px solid #1a3a5c;
-    )");
-    layout->addWidget(titleLabel);
+    m_ecgChart = new EcgChartWidget();
+    m_ecgChart->setMinimumHeight(180);
+    m_ecgChart->setLineColor(QColor("#00d9ff"));
+    m_ecgChart->setBackgroundColor(QColor("#16213e"));
+    m_ecgChart->setGridColor(QColor("#1f4068"));
+    ecgLayout->addWidget(m_ecgChart);
     
-    layout->addSpacing(20);
+    mainLayout->addWidget(ecgContainer, 1);
     
-    // 连接状态卡片
-    QFrame* statusCard = new QFrame();
-    statusCard->setStyleSheet(R"(
-        QFrame {
-            background-color: #0d1f35;
-            border-radius: 10px;
-            padding: 15px;
-        }
-    )");
-    QVBoxLayout* statusLayout = new QVBoxLayout(statusCard);
-    
-    QLabel* statusTitle = new QLabel(QStringLiteral("📡 连接状态"));
-    statusTitle->setStyleSheet("font-weight: bold; color: #4ecdc4; font-size: 14px;");
-    statusLayout->addWidget(statusTitle);
-    
-    m_connectionStatusLabel = new QLabel(QStringLiteral("● 未连接"));
-    m_connectionStatusLabel->setStyleSheet("color: #ff6b6b; font-size: 16px; font-weight: bold;");
-    statusLayout->addWidget(m_connectionStatusLabel);
-    
-    m_mqttStatusLabel = new QLabel(QStringLiteral("等待连接..."));
-    m_mqttStatusLabel->setStyleSheet("color: #7a9abc; font-size: 12px;");
-    m_mqttStatusLabel->setWordWrap(true);
-    statusLayout->addWidget(m_mqttStatusLabel);
-    
-    layout->addWidget(statusCard);
-    
-    // 数据统计卡片
-    QFrame* statsCard = new QFrame();
-    statsCard->setStyleSheet(R"(
-        QFrame {
-            background-color: #0d1f35;
-            border-radius: 10px;
-            padding: 15px;
-        }
-    )");
-    QVBoxLayout* statsLayout = new QVBoxLayout(statsCard);
-    
-    QLabel* statsTitle = new QLabel(QStringLiteral("📊 数据统计"));
-    statsTitle->setStyleSheet("font-weight: bold; color: #4ecdc4; font-size: 14px;");
-    statsLayout->addWidget(statsTitle);
-    
-    m_recordCountLabel = new QLabel(QStringLiteral("记录数: 0"));
-    m_recordCountLabel->setStyleSheet("color: #b0c4de; font-size: 13px;");
-    statsLayout->addWidget(m_recordCountLabel);
-    
-    m_lastUpdateLabel = new QLabel(QStringLiteral("最后更新: --"));
-    m_lastUpdateLabel->setStyleSheet("color: #7a9abc; font-size: 12px;");
-    statsLayout->addWidget(m_lastUpdateLabel);
-    
-    m_cloudStatusLabel = new QLabel(QStringLiteral("☁️ 云同步: 未启用"));
-    m_cloudStatusLabel->setStyleSheet("color: #7a9abc; font-size: 12px;");
-    statsLayout->addWidget(m_cloudStatusLabel);
-    
-    layout->addWidget(statsCard);
-    
-    // 报警状态卡片
+    // 报警区域 (初始隐藏)
     m_alarmFrame = new QFrame();
     m_alarmFrame->setStyleSheet(R"(
         QFrame {
-            background-color: #2a1a1a;
-            border: 1px solid #ff4444;
+            background-color: #c0392b;
             border-radius: 10px;
-            padding: 15px;
+            padding: 12px;
         }
     )");
     m_alarmFrame->setVisible(false);
     
-    QVBoxLayout* alarmLayout = new QVBoxLayout(m_alarmFrame);
+    QHBoxLayout* alarmLayout = new QHBoxLayout(m_alarmFrame);
+    alarmLayout->setContentsMargins(16, 12, 16, 12);
     
-    m_alarmLabel = new QLabel(QStringLiteral("⚠️ 无报警"));
-    m_alarmLabel->setStyleSheet("color: #ff6b6b; font-weight: bold; font-size: 14px;");
-    alarmLayout->addWidget(m_alarmLabel);
+    m_alarmLabel = new QLabel(QStringLiteral("报警信息"));
+    m_alarmLabel->setStyleSheet("color: white; font-weight: bold; font-size: 14px;");
+    alarmLayout->addWidget(m_alarmLabel, 1);
     
-    m_alarmCountLabel = new QLabel(QStringLiteral("活动报警: 0"));
-    m_alarmCountLabel->setStyleSheet("color: #ff9999; font-size: 12px;");
-    alarmLayout->addWidget(m_alarmCountLabel);
-    
-    m_acknowledgeButton = new QPushButton(QStringLiteral("✓ 确认报警"));
+    m_acknowledgeButton = new QPushButton(QStringLiteral("确认"));
+    m_acknowledgeButton->setFixedSize(70, 36);
     m_acknowledgeButton->setStyleSheet(R"(
         QPushButton {
-            background: #aa3333;
-            border: 1px solid #cc4444;
-        }
-        QPushButton:hover {
-            background: #cc4444;
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 6px;
         }
     )");
-    m_acknowledgeButton->setEnabled(false);
     alarmLayout->addWidget(m_acknowledgeButton);
     
-    layout->addWidget(m_alarmFrame);
+    mainLayout->addWidget(m_alarmFrame);
     
-    layout->addStretch();
+    setCentralWidget(centralWidget);
     
-    // 操作按钮
-    m_connectButton = new QPushButton(QStringLiteral("🔗 连接MQTT"));
-    m_connectButton->setObjectName("connectButton");
-    layout->addWidget(m_connectButton);
+    // 状态栏
+    m_connectionStatusLabel = new QLabel(QStringLiteral("未连接"));
+    m_connectionStatusLabel->setObjectName("statusLabel");
+    statusBar()->addWidget(m_connectionStatusLabel);
     
-    m_simulateButton = new QPushButton(QStringLiteral("🔄 模拟数据"));
-    m_simulateButton->setObjectName("simulateButton");
-    layout->addWidget(m_simulateButton);
+    m_lastUpdateLabel = new QLabel();
+    m_lastUpdateLabel->setObjectName("statusLabel");
+    statusBar()->addPermanentWidget(m_lastUpdateLabel);
     
-    m_historyButton = new QPushButton(QStringLiteral("📋 历史查询"));
-    layout->addWidget(m_historyButton);
-    
-    m_settingsButton = new QPushButton(QStringLiteral("⚙️ 设置"));
-    layout->addWidget(m_settingsButton);
-    
-    return sidebar;
+    // 隐藏未使用的成员
+    m_mqttStatusLabel = m_connectionStatusLabel;
+    m_cloudStatusLabel = new QLabel();
+    m_recordCountLabel = new QLabel();
+    m_alarmCountLabel = new QLabel();
+    m_vitalsChart = nullptr;  // 移动端不显示趋势图
 }
 
-QWidget* MainWindow::createDashboard()
-{
-    QWidget* dashboard = new QWidget();
-    dashboard->setStyleSheet("background-color: #050d1a;");
-    
-    QVBoxLayout* layout = new QVBoxLayout(dashboard);
-    layout->setSpacing(20);
-    layout->setContentsMargins(30, 30, 30, 30);
-    
-    // 顶部生命体征卡片区域
-    QHBoxLayout* vitalsLayout = new QHBoxLayout();
-    vitalsLayout->setSpacing(20);
-    
-    // 体温卡片
-    QWidget* tempCard = createVitalCard(
-        QStringLiteral("体温"), "🌡️", "--.-", "°C",
-        QColor("#ff6b6b"), &m_tempValueLabel);
-    vitalsLayout->addWidget(tempCard);
-    
-    // 心率卡片
-    QWidget* hrCard = createVitalCard(
-        QStringLiteral("心率"), "❤️", "---", "bpm",
-        QColor("#4ecdc4"), &m_hrValueLabel);
-    vitalsLayout->addWidget(hrCard);
-    
-    // 血氧卡片
-    QWidget* spo2Card = createVitalCard(
-        QStringLiteral("血氧"), "💧", "---", "%",
-        QColor("#45b7d1"), &m_spo2ValueLabel);
-    vitalsLayout->addWidget(spo2Card);
-    
-    layout->addLayout(vitalsLayout);
-    
-    // 图表区域
-    QSplitter* chartSplitter = new QSplitter(Qt::Vertical);
-    chartSplitter->setStyleSheet(R"(
-        QSplitter::handle {
-            background-color: #1a3a5c;
-            height: 2px;
-        }
-    )");
-    
-    // 心电图
-    QGroupBox* ecgGroup = new QGroupBox(QStringLiteral("💓 实时心电图 (ECG)"));
-    QVBoxLayout* ecgLayout = new QVBoxLayout(ecgGroup);
-    m_ecgChart = new EcgChartWidget();
-    m_ecgChart->setMinimumHeight(250);
-    ecgLayout->addWidget(m_ecgChart);
-    chartSplitter->addWidget(ecgGroup);
-    
-    // 趋势图
-    QGroupBox* vitalsGroup = new QGroupBox(QStringLiteral("📈 生命体征趋势"));
-    QVBoxLayout* vitalsChartLayout = new QVBoxLayout(vitalsGroup);
-    m_vitalsChart = new VitalsChartWidget(VitalsChartWidget::Combined);
-    m_vitalsChart->setMinimumHeight(200);
-    vitalsChartLayout->addWidget(m_vitalsChart);
-    chartSplitter->addWidget(vitalsGroup);
-    
-    chartSplitter->setSizes({350, 250});
-    layout->addWidget(chartSplitter, 1);
-    
-    return dashboard;
-}
-
-QWidget* MainWindow::createVitalCard(const QString& title, const QString& icon,
-                                      const QString& value, const QString& unit,
-                                      const QColor& color, QLabel** valueLabel)
+QWidget* MainWindow::createVitalCard(const QString& title, const QString& value,
+                                      const QString& unit, const QColor& color,
+                                      QLabel** valueLabel)
 {
     QFrame* card = new QFrame();
     card->setStyleSheet(QString(R"(
         QFrame {
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #0d1f35, stop:1 #0a1628);
-            border: 1px solid %1;
-            border-radius: 15px;
-            padding: 20px;
+            background-color: #16213e;
+            border-radius: 12px;
+            border-left: 4px solid %1;
         }
-    )").arg(color.darker(150).name()));
-    
-    // 添加阴影效果
-    QGraphicsDropShadowEffect* shadow = new QGraphicsDropShadowEffect();
-    shadow->setBlurRadius(20);
-    shadow->setColor(color);
-    shadow->setOffset(0, 0);
-    card->setGraphicsEffect(shadow);
+    )").arg(color.name()));
     
     QVBoxLayout* layout = new QVBoxLayout(card);
-    layout->setSpacing(10);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(8);
     
-    // 标题行
-    QHBoxLayout* titleLayout = new QHBoxLayout();
-    QLabel* iconLabel = new QLabel(icon);
-    iconLabel->setStyleSheet("font-size: 24px;");
-    titleLayout->addWidget(iconLabel);
-    
+    // 标题
     QLabel* titleLabel = new QLabel(title);
-    titleLabel->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 16px;").arg(color.name()));
-    titleLayout->addWidget(titleLabel);
-    titleLayout->addStretch();
+    titleLabel->setStyleSheet("color: #8892b0; font-size: 13px; font-weight: bold;");
+    layout->addWidget(titleLabel);
     
-    layout->addLayout(titleLayout);
+    // 数值行
+    QHBoxLayout* valueLayout = new QHBoxLayout();
+    valueLayout->setSpacing(4);
+    valueLayout->setAlignment(Qt::AlignBottom);
     
-    // 数值
     *valueLabel = new QLabel(value);
     (*valueLabel)->setStyleSheet(QString(R"(
         color: %1;
-        font-size: 48px;
+        font-size: 36px;
         font-weight: bold;
         font-family: "Consolas", "Monaco", monospace;
     )").arg(color.name()));
-    (*valueLabel)->setAlignment(Qt::AlignCenter);
-    layout->addWidget(*valueLabel);
+    valueLayout->addWidget(*valueLabel);
     
-    // 单位
     QLabel* unitLabel = new QLabel(unit);
-    unitLabel->setStyleSheet(QString("color: %1; font-size: 18px;").arg(color.darker(120).name()));
-    unitLabel->setAlignment(Qt::AlignCenter);
-    layout->addWidget(unitLabel);
+    unitLabel->setStyleSheet(QString("color: %1; font-size: 14px;").arg(color.darker(120).name()));
+    valueLayout->addWidget(unitLabel);
+    valueLayout->addStretch();
+    
+    layout->addLayout(valueLayout);
     
     return card;
+}
+
+QWidget* MainWindow::createStatusCard()
+{
+    QFrame* card = new QFrame();
+    card->setStyleSheet(R"(
+        QFrame {
+            background-color: #16213e;
+            border-radius: 12px;
+        }
+    )");
+    
+    QVBoxLayout* layout = new QVBoxLayout(card);
+    layout->setContentsMargins(16, 16, 16, 16);
+    layout->setSpacing(12);
+    
+    QLabel* titleLabel = new QLabel(QStringLiteral("状态"));
+    titleLabel->setStyleSheet("color: #8892b0; font-size: 13px; font-weight: bold;");
+    layout->addWidget(titleLabel);
+    
+    // 连接指示器
+    QHBoxLayout* connLayout = new QHBoxLayout();
+    QLabel* connDot = new QLabel(QStringLiteral("●"));
+    connDot->setObjectName("connDot");
+    connDot->setStyleSheet("color: #e74c3c; font-size: 12px;");
+    connLayout->addWidget(connDot);
+    
+    QLabel* connText = new QLabel(QStringLiteral("MQTT"));
+    connText->setStyleSheet("color: #eaeaea; font-size: 13px;");
+    connLayout->addWidget(connText);
+    connLayout->addStretch();
+    
+    layout->addLayout(connLayout);
+    layout->addStretch();
+    
+    return card;
+}
+
+QWidget* MainWindow::createSidebar()
+{
+    return nullptr; // 移动端不需要侧边栏
+}
+
+QWidget* MainWindow::createDashboard()
+{
+    return nullptr; // 使用新的简洁布局
 }
 
 void MainWindow::setupConnections()
@@ -414,11 +358,6 @@ void MainWindow::setupConnections()
     connect(m_alarmManager, &AlarmManager::alarmTriggered, this, &MainWindow::onAlarmTriggered);
     connect(m_alarmManager, &AlarmManager::alarmCleared, this, &MainWindow::onAlarmCleared);
     
-    // 云同步状态
-    connect(m_cloudSyncer, &CloudSyncer::statusChanged, [this](const QString& status) {
-        m_cloudStatusLabel->setText(QStringLiteral("☁️ %1").arg(status));
-    });
-    
     // 按钮
     connect(m_connectButton, &QPushButton::clicked, this, &MainWindow::onConnectClicked);
     connect(m_settingsButton, &QPushButton::clicked, this, &MainWindow::onSettingsClicked);
@@ -435,12 +374,10 @@ void MainWindow::loadSettings()
 {
     QSettings settings("HealthMonitor", "QtECG");
     
-    // 窗口几何
     if (settings.contains("geometry")) {
         restoreGeometry(settings.value("geometry").toByteArray());
     }
     
-    // 报警阈值
     AlarmThresholds thresholds;
     thresholds.tempHigh = settings.value("alarm/tempHigh", 37.5).toDouble();
     thresholds.tempLow = settings.value("alarm/tempLow", 35.0).toDouble();
@@ -450,19 +387,12 @@ void MainWindow::loadSettings()
     m_alarmManager->setThresholds(thresholds);
     m_alarmManager->setSoundEnabled(settings.value("alarm/soundEnabled", true).toBool());
     
-    // 云同步设置
     m_cloudSyncer->setEnabled(settings.value("cloud/enabled", false).toBool());
     m_cloudSyncer->setServerUrl(settings.value("cloud/url", "").toString());
     m_cloudSyncer->setApiKey(settings.value("cloud/apiKey", "").toString());
     m_cloudSyncer->setDeviceId(settings.value("cloud/deviceId", "device_001").toString());
     
-    if (m_cloudSyncer->isEnabled()) {
-        m_cloudSyncer->startAutoSync(settings.value("cloud/syncInterval", 60).toInt());
-    }
-    
-    // 显示设置
     m_ecgChart->setDisplayDuration(settings.value("display/ecgDuration", 5).toInt());
-    m_vitalsChart->setTimeRange(settings.value("display/vitalsRange", 60).toInt());
 }
 
 void MainWindow::saveSettings()
@@ -483,25 +413,44 @@ void MainWindow::onMqttDisconnected()
 
 void MainWindow::onMqttError(const QString& error)
 {
-    m_mqttStatusLabel->setText(QStringLiteral("错误: %1").arg(error));
+    m_connectionStatusLabel->setText(QStringLiteral("错误: %1").arg(error));
     QMessageBox::warning(this, QStringLiteral("连接错误"), error);
 }
 
 void MainWindow::onMqttStatusChanged(const QString& status)
 {
-    m_mqttStatusLabel->setText(status);
+    m_connectionStatusLabel->setText(status);
 }
 
 void MainWindow::updateConnectionStatus(bool connected)
 {
+    // 更新状态栏
     if (connected) {
-        m_connectionStatusLabel->setText(QStringLiteral("● 已连接"));
-        m_connectionStatusLabel->setStyleSheet("color: #4ecdc4; font-size: 16px; font-weight: bold;");
-        m_connectButton->setText(QStringLiteral("🔌 断开连接"));
+        m_connectionStatusLabel->setText(QStringLiteral("已连接"));
+        m_connectButton->setText(QStringLiteral("断开"));
+        m_connectButton->setStyleSheet(R"(
+            QPushButton {
+                background-color: #e74c3c;
+                border: none;
+                border-radius: 8px;
+                padding: 14px 20px;
+                color: white;
+                font-weight: bold;
+            }
+        )");
     } else {
-        m_connectionStatusLabel->setText(QStringLiteral("● 未连接"));
-        m_connectionStatusLabel->setStyleSheet("color: #ff6b6b; font-size: 16px; font-weight: bold;");
-        m_connectButton->setText(QStringLiteral("🔗 连接MQTT"));
+        m_connectionStatusLabel->setText(QStringLiteral("未连接"));
+        m_connectButton->setText(QStringLiteral("连接"));
+        m_connectButton->setStyleSheet("");
+        m_connectButton->setObjectName("connectBtn");
+    }
+    
+    // 更新状态卡片中的指示点
+    QLabel* connDot = findChild<QLabel*>("connDot");
+    if (connDot) {
+        connDot->setStyleSheet(connected ? 
+            "color: #2ecc71; font-size: 12px;" : 
+            "color: #e74c3c; font-size: 12px;");
     }
 }
 
@@ -510,18 +459,10 @@ void MainWindow::onTemperatureReceived(double temp)
     m_currentTemp = temp;
     m_tempValueLabel->setText(QString::number(temp, 'f', 1));
     
-    // 保存到数据库
     m_dataManager->saveTemperature(temp);
-    
-    // 更新趋势图
-    m_vitalsChart->addTemperaturePoint(temp);
-    
-    // 检查报警
     m_alarmManager->checkTemperature(temp);
     
-    // 更新最后时间
-    m_lastUpdateLabel->setText(QStringLiteral("最后更新: %1")
-        .arg(QDateTime::currentDateTime().toString("HH:mm:ss")));
+    m_lastUpdateLabel->setText(QDateTime::currentDateTime().toString("HH:mm:ss"));
 }
 
 void MainWindow::onHeartRateReceived(int hr)
@@ -530,11 +471,9 @@ void MainWindow::onHeartRateReceived(int hr)
     m_hrValueLabel->setText(QString::number(hr));
     
     m_dataManager->saveHeartRate(hr);
-    m_vitalsChart->addHeartRatePoint(hr);
     m_alarmManager->checkHeartRate(hr);
     
-    m_lastUpdateLabel->setText(QStringLiteral("最后更新: %1")
-        .arg(QDateTime::currentDateTime().toString("HH:mm:ss")));
+    m_lastUpdateLabel->setText(QDateTime::currentDateTime().toString("HH:mm:ss"));
 }
 
 void MainWindow::onBloodOxygenReceived(int spo2)
@@ -543,11 +482,9 @@ void MainWindow::onBloodOxygenReceived(int spo2)
     m_spo2ValueLabel->setText(QString::number(spo2));
     
     m_dataManager->saveBloodOxygen(spo2);
-    m_vitalsChart->addBloodOxygenPoint(spo2);
     m_alarmManager->checkBloodOxygen(spo2);
     
-    m_lastUpdateLabel->setText(QStringLiteral("最后更新: %1")
-        .arg(QDateTime::currentDateTime().toString("HH:mm:ss")));
+    m_lastUpdateLabel->setText(QDateTime::currentDateTime().toString("HH:mm:ss"));
 }
 
 void MainWindow::onEcgDataReceived(const QVector<double>& data)
@@ -555,15 +492,13 @@ void MainWindow::onEcgDataReceived(const QVector<double>& data)
     m_ecgChart->addDataPoints(data);
     m_dataManager->saveEcgData(data);
     
-    m_lastUpdateLabel->setText(QStringLiteral("最后更新: %1")
-        .arg(QDateTime::currentDateTime().toString("HH:mm:ss")));
+    m_lastUpdateLabel->setText(QDateTime::currentDateTime().toString("HH:mm:ss"));
 }
 
 void MainWindow::onAlarmTriggered(const AlarmInfo& alarm)
 {
     showAlarmIndicator(true);
-    m_alarmLabel->setText(QStringLiteral("⚠️ %1").arg(alarm.message));
-    m_alarmCountLabel->setText(QStringLiteral("活动报警: %1").arg(m_alarmManager->getActiveAlarmCount()));
+    m_alarmLabel->setText(alarm.message);
     m_acknowledgeButton->setEnabled(true);
 }
 
@@ -589,7 +524,6 @@ void MainWindow::onConnectClicked()
         QString username = settings.value("mqtt/username", "").toString();
         QString password = settings.value("mqtt/password", "").toString();
         
-        // 设置主题
         m_mqttClient->setTopics(
             settings.value("mqtt/tempTopic", "health/temperature").toString(),
             settings.value("mqtt/hrTopic", "health/heartrate").toString(),
@@ -606,10 +540,8 @@ void MainWindow::onSettingsClicked()
     SettingsDialog dialog(this);
     
     if (dialog.exec() == QDialog::Accepted) {
-        // 应用新设置
         loadSettings();
         
-        // 更新MQTT主题
         m_mqttClient->setTopics(
             dialog.getTempTopic(),
             dialog.getHrTopic(),
@@ -617,25 +549,15 @@ void MainWindow::onSettingsClicked()
             dialog.getEcgTopic()
         );
         
-        // 更新报警阈值
         m_alarmManager->setThresholds(dialog.getAlarmThresholds());
         m_alarmManager->setSoundEnabled(dialog.isAlarmSoundEnabled());
         
-        // 更新云同步
         m_cloudSyncer->setEnabled(dialog.isCloudEnabled());
         m_cloudSyncer->setServerUrl(dialog.getCloudServerUrl());
         m_cloudSyncer->setApiKey(dialog.getCloudApiKey());
         m_cloudSyncer->setDeviceId(dialog.getDeviceId());
         
-        if (dialog.isCloudEnabled()) {
-            m_cloudSyncer->startAutoSync(dialog.getAutoSyncInterval());
-        } else {
-            m_cloudSyncer->stopAutoSync();
-        }
-        
-        // 更新图表设置
         m_ecgChart->setDisplayDuration(dialog.getEcgDisplayDuration());
-        m_vitalsChart->setTimeRange(dialog.getVitalsTimeRange());
     }
 }
 
@@ -655,23 +577,23 @@ void MainWindow::onSimulateDataClicked()
     m_simulating = !m_simulating;
     
     if (m_simulating) {
-        m_simulateButton->setText(QStringLiteral("⏹️ 停止模拟"));
-        m_simulationTimer->start(40);  // 25 Hz
+        m_simulateButton->setText(QStringLiteral("停止"));
+        m_simulateButton->setStyleSheet("background-color: #e67e22;");
+        m_simulationTimer->start(40);
     } else {
-        m_simulateButton->setText(QStringLiteral("🔄 模拟数据"));
+        m_simulateButton->setText(QStringLiteral("模拟"));
+        m_simulateButton->setStyleSheet("");
         m_simulationTimer->stop();
     }
 }
 
 void MainWindow::onUpdateTimer()
 {
-    // 更新记录数
-    m_recordCountLabel->setText(QStringLiteral("记录数: %1").arg(m_dataManager->getRecordCount()));
+    // 更新时间等
 }
 
 void MainWindow::onSimulationTimer()
 {
-    // 模拟ECG数据 - 生成类似真实心电图的波形
     static int ecgCounter = 0;
     QVector<double> ecgData;
     
@@ -698,30 +620,32 @@ void MainWindow::onSimulationTimer()
             value = 0.25 * qSin(M_PI * (fmod(t, 1.0) - 0.30) / 0.15);
         }
         
-        // 添加一点噪声
         value += (QRandomGenerator::global()->bounded(100) - 50) / 500.0;
         
         ecgData.append(value);
-        m_simPhase += 1.0 / 250.0;  // 250 Hz 采样率
+        m_simPhase += 1.0 / 250.0;
     }
     
     m_ecgChart->addDataPoints(ecgData);
     
-    // 每秒更新一次生命体征
     ecgCounter++;
     if (ecgCounter >= 25) {
         ecgCounter = 0;
         
-        // 模拟体温 (36.0 - 37.5)
         double temp = 36.5 + QRandomGenerator::global()->bounded(100) / 100.0;
         onTemperatureReceived(temp);
         
-        // 模拟心率 (60 - 100)
         int hr = 70 + QRandomGenerator::global()->bounded(30);
         onHeartRateReceived(hr);
         
-        // 模拟血氧 (95 - 100)
         int spo2 = 96 + QRandomGenerator::global()->bounded(4);
         onBloodOxygenReceived(spo2);
     }
+}
+
+void MainWindow::updateVitalDisplay(const QString& type, double value, const QString& unit)
+{
+    Q_UNUSED(type)
+    Q_UNUSED(value)
+    Q_UNUSED(unit)
 }
