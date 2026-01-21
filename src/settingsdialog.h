@@ -51,6 +51,11 @@ public:
     bool isAlarmSoundEnabled() const;
     
     void setDisplaySettings(int ecgDuration, int vitalsRange, bool alarmSound);
+    
+    // ECG滤波设置
+    bool isEcgFilterEnabled() const;
+    double getEcgFilterCoefficient() const;
+    void setEcgFilterSettings(bool enabled, double coefficient);
 
 signals:
     void settingsChanged();
@@ -100,4 +105,8 @@ private:
     // 显示设置控件
     QSpinBox* m_ecgDurationSpin;
     QComboBox* m_vitalsRangeCombo;
+    
+    // ECG滤波控件
+    QCheckBox* m_ecgFilterEnabledCheck;
+    QDoubleSpinBox* m_ecgFilterCoefficientSpin;
 };

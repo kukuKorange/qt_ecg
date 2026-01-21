@@ -29,6 +29,12 @@ public:
     void setLineColor(const QColor& color);
     void setBackgroundColor(const QColor& color);
     void setGridColor(const QColor& color);
+    
+    // 低通滤波设置
+    void setFilterEnabled(bool enabled);
+    void setFilterCoefficient(double alpha);
+    bool isFilterEnabled() const { return m_filterEnabled; }
+    double getFilterCoefficient() const { return m_filterAlpha; }
 
 signals:
     void playbackFinished();
@@ -59,4 +65,12 @@ private:
     QColor m_lineColor;
     QColor m_backgroundColor;
     QColor m_gridColor;
+    
+    // 低通滤波
+    bool m_filterEnabled = true;
+    double m_filterAlpha = 0.25;  // 滤波系数 (0.0-1.0)
+    double m_lastFilteredValue = 0.0;
+    bool m_filterInitialized = false;
+    
+    double applyLowPassFilter(double rawValue);
 };

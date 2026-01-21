@@ -81,8 +81,11 @@ void EcgChartWidget::setupChart()
 
 void EcgChartWidget::addDataPoint(double value)
 {
+    // 应用低通滤波
+    double filteredValue = applyLowPassFilter(value);
+    
     double x = static_cast<double>(m_currentIndex) / m_sampleRate;
-    m_series->append(x, value);
+    m_series->append(x, filteredValue);
     m_currentIndex++;
     
     // 限制显示点数
@@ -96,8 +99,11 @@ void EcgChartWidget::addDataPoint(double value)
 void EcgChartWidget::addDataPoints(const QVector<double>& values)
 {
     for (double value : values) {
+        // 应用低通滤波
+        double filteredValue = applyLowPassFilter(value);
+        
         double x = static_cast<double>(m_currentIndex) / m_sampleRate;
-        m_series->append(x, value);
+        m_series->append(x, filteredValue);
         m_currentIndex++;
     }
     
@@ -114,6 +120,10 @@ void EcgChartWidget::clear()
     m_series->clear();
     m_currentIndex = 0;
     m_axisX->setRange(0, m_displayDuration);
+    
+    // 重置滤波器状态
+    m_filterInitialized = false;
+    m_lastFilteredValue = 0.0;
 }
 
 void EcgChartWidget::setDisplayDuration(int seconds)
@@ -225,4 +235,38 @@ void EcgChartWidget::setGridColor(const QColor& color)
     m_gridColor = color;
     m_axisX->setGridLineColor(color);
     m_axisY->setGridLineColor(color);
+}
+
+void EcgChartWidget::setFilterEnabled(bool enabled)
+{
+    m_filterEnabled = enabled;
+    if (!enabled) {
+        // 禁用滤波时重置滤波器状态
+        m_filterInitialized = false;
+        m_lastFilteredValue = 0.0;
+    }
+}
+
+void EcgChartWidget::setFilterCoefficient(double alpha)
+{
+    // 限制系数范围在 0.01 到 1.0 之间
+    m_filterAlpha = qBound(0.01, alpha, 1.0);
+}
+
+double EcgChartWidget::applyLowPassFilter(double rawValue)
+{
+    if (!m_filterEnabled) {
+        return rawValue;
+    }
+    
+    if (!m_filterInitialized) {
+        m_lastFilteredValue = rawValue;
+        m_filterInitialized = true;
+        return rawValue;
+    }
+    
+    // 低通滤波: filtered = last_filtered + (raw - last_filtered) * alpha
+    double filtered = m_lastFilteredValue + (rawValue - m_lastFilteredValue) * m_filterAlpha;
+    m_lastFilteredValue = filtered;
+    return filtered;
 }

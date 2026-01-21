@@ -268,6 +268,35 @@ void SettingsDialog::setupUI()
     displayFormLayout->addRow(QStringLiteral("趋势图时间范围:"), m_vitalsRangeCombo);
     
     displayLayout->addWidget(displayGroup);
+    
+    // ECG滤波设置组
+    QGroupBox* filterGroup = new QGroupBox(QStringLiteral("ECG低通滤波"));
+    QFormLayout* filterFormLayout = new QFormLayout(filterGroup);
+    
+    m_ecgFilterEnabledCheck = new QCheckBox(QStringLiteral("启用低通滤波"));
+    m_ecgFilterEnabledCheck->setChecked(true);
+    filterFormLayout->addRow(m_ecgFilterEnabledCheck);
+    
+    m_ecgFilterCoefficientSpin = new QDoubleSpinBox();
+    m_ecgFilterCoefficientSpin->setRange(0.01, 1.0);
+    m_ecgFilterCoefficientSpin->setValue(0.25);
+    m_ecgFilterCoefficientSpin->setSingleStep(0.05);
+    m_ecgFilterCoefficientSpin->setDecimals(2);
+    m_ecgFilterCoefficientSpin->setToolTip(QStringLiteral("滤波系数 (0.01-1.0)\n值越小滤波效果越强，但响应越慢\n值越大响应越快，但滤波效果越弱\n建议值: 0.1-0.5"));
+    
+    filterFormLayout->addRow(QStringLiteral("滤波系数 (α):"), m_ecgFilterCoefficientSpin);
+    
+    // 添加说明标签
+    QLabel* filterHintLabel = new QLabel(QStringLiteral(
+        "滤波公式: filtered = last + (raw - last) × α\n"
+        "• α=0.1: 强滤波，平滑但延迟较大\n"
+        "• α=0.25: 推荐值，平衡滤波与响应\n"
+        "• α=0.5: 弱滤波，响应快但噪声多"
+    ));
+    filterHintLabel->setStyleSheet("color: #7a8899; font-size: 11px; padding: 8px;");
+    filterFormLayout->addRow(filterHintLabel);
+    
+    displayLayout->addWidget(filterGroup);
     displayLayout->addStretch();
     
     m_tabWidget->addTab(displayPage, QStringLiteral("🎨 显示设置"));
@@ -328,6 +357,10 @@ void SettingsDialog::loadSettings()
     m_ecgDurationSpin->setValue(settings.value("display/ecgDuration", 5).toInt());
     int vitalsIndex = m_vitalsRangeCombo->findData(settings.value("display/vitalsRange", 60).toInt());
     if (vitalsIndex >= 0) m_vitalsRangeCombo->setCurrentIndex(vitalsIndex);
+    
+    // ECG滤波设置
+    m_ecgFilterEnabledCheck->setChecked(settings.value("ecg/filterEnabled", true).toBool());
+    m_ecgFilterCoefficientSpin->setValue(settings.value("ecg/filterCoefficient", 0.25).toDouble());
 }
 
 void SettingsDialog::saveSettings()
@@ -363,6 +396,10 @@ void SettingsDialog::saveSettings()
     // 显示设置
     settings.setValue("display/ecgDuration", m_ecgDurationSpin->value());
     settings.setValue("display/vitalsRange", m_vitalsRangeCombo->currentData().toInt());
+    
+    // ECG滤波设置
+    settings.setValue("ecg/filterEnabled", m_ecgFilterEnabledCheck->isChecked());
+    settings.setValue("ecg/filterCoefficient", m_ecgFilterCoefficientSpin->value());
 }
 
 QString SettingsDialog::getMqttHost() const { return m_mqttHostEdit->text(); }
@@ -440,6 +477,22 @@ void SettingsDialog::setDisplaySettings(int ecgDuration, int vitalsRange, bool a
     m_alarmSoundCheck->setChecked(alarmSound);
 }
 
+bool SettingsDialog::isEcgFilterEnabled() const
+{
+    return m_ecgFilterEnabledCheck->isChecked();
+}
+
+double SettingsDialog::getEcgFilterCoefficient() const
+{
+    return m_ecgFilterCoefficientSpin->value();
+}
+
+void SettingsDialog::setEcgFilterSettings(bool enabled, double coefficient)
+{
+    m_ecgFilterEnabledCheck->setChecked(enabled);
+    m_ecgFilterCoefficientSpin->setValue(coefficient);
+}
+
 void SettingsDialog::onTestMqttClicked()
 {
     emit mqttTestRequested(m_mqttHostEdit->text(), m_mqttPortSpin->value(),
@@ -487,5 +540,8 @@ void SettingsDialog::onResetDefaults()
         
         m_ecgDurationSpin->setValue(5);
         m_vitalsRangeCombo->setCurrentIndex(2);
+        
+        m_ecgFilterEnabledCheck->setChecked(true);
+        m_ecgFilterCoefficientSpin->setValue(0.25);
     }
 }

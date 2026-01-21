@@ -393,6 +393,10 @@ void MainWindow::loadSettings()
     m_cloudSyncer->setDeviceId(settings.value("cloud/deviceId", "device_001").toString());
     
     m_ecgChart->setDisplayDuration(settings.value("display/ecgDuration", 5).toInt());
+    
+    // ECG滤波设置
+    m_ecgChart->setFilterEnabled(settings.value("ecg/filterEnabled", true).toBool());
+    m_ecgChart->setFilterCoefficient(settings.value("ecg/filterCoefficient", 0.25).toDouble());
 }
 
 void MainWindow::saveSettings()
@@ -558,6 +562,10 @@ void MainWindow::onSettingsClicked()
         m_cloudSyncer->setDeviceId(dialog.getDeviceId());
         
         m_ecgChart->setDisplayDuration(dialog.getEcgDisplayDuration());
+        
+        // 应用ECG滤波设置
+        m_ecgChart->setFilterEnabled(dialog.isEcgFilterEnabled());
+        m_ecgChart->setFilterCoefficient(dialog.getEcgFilterCoefficient());
     }
 }
 
