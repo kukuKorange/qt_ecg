@@ -266,8 +266,31 @@ void SettingsDialog::setupUI()
     
     displayFormLayout->addRow(QStringLiteral("心电图显示时长:"), m_ecgDurationSpin);
     displayFormLayout->addRow(QStringLiteral("趋势图时间范围:"), m_vitalsRangeCombo);
-    
+
     displayLayout->addWidget(displayGroup);
+
+    // 显示信息选择
+    QGroupBox* infoSelectGroup = new QGroupBox(QStringLiteral("显示信息选择"));
+    QVBoxLayout* infoSelectLayout = new QVBoxLayout(infoSelectGroup);
+    infoSelectLayout->setSpacing(10);
+
+    m_showTempCheck = new QCheckBox(QStringLiteral("显示体温"));
+    m_showTempCheck->setChecked(true);
+    infoSelectLayout->addWidget(m_showTempCheck);
+
+    m_showHrCheck = new QCheckBox(QStringLiteral("显示心率"));
+    m_showHrCheck->setChecked(true);
+    infoSelectLayout->addWidget(m_showHrCheck);
+
+    m_showSpo2Check = new QCheckBox(QStringLiteral("显示血氧"));
+    m_showSpo2Check->setChecked(true);
+    infoSelectLayout->addWidget(m_showSpo2Check);
+
+    QLabel* infoHint = new QLabel(QStringLiteral("取消勾选后，主界面将隐藏对应指标卡片"));
+    infoHint->setStyleSheet("color: #7a8899; font-size: 11px; padding-top: 4px;");
+    infoSelectLayout->addWidget(infoHint);
+
+    displayLayout->addWidget(infoSelectGroup);
     
     // ECG滤波设置组
     QGroupBox* filterGroup = new QGroupBox(QStringLiteral("ECG低通滤波"));
@@ -361,6 +384,11 @@ void SettingsDialog::loadSettings()
     // ECG滤波设置
     m_ecgFilterEnabledCheck->setChecked(settings.value("ecg/filterEnabled", true).toBool());
     m_ecgFilterCoefficientSpin->setValue(settings.value("ecg/filterCoefficient", 0.25).toDouble());
+
+    // 显示信息选择
+    m_showTempCheck->setChecked(settings.value("display/showTemp", true).toBool());
+    m_showHrCheck->setChecked(settings.value("display/showHr",   true).toBool());
+    m_showSpo2Check->setChecked(settings.value("display/showSpo2", true).toBool());
 }
 
 void SettingsDialog::saveSettings()
@@ -400,6 +428,11 @@ void SettingsDialog::saveSettings()
     // ECG滤波设置
     settings.setValue("ecg/filterEnabled", m_ecgFilterEnabledCheck->isChecked());
     settings.setValue("ecg/filterCoefficient", m_ecgFilterCoefficientSpin->value());
+
+    // 显示信息选择
+    settings.setValue("display/showTemp", m_showTempCheck->isChecked());
+    settings.setValue("display/showHr",   m_showHrCheck->isChecked());
+    settings.setValue("display/showSpo2", m_showSpo2Check->isChecked());
 }
 
 QString SettingsDialog::getMqttHost() const { return m_mqttHostEdit->text(); }
@@ -493,6 +526,10 @@ void SettingsDialog::setEcgFilterSettings(bool enabled, double coefficient)
     m_ecgFilterCoefficientSpin->setValue(coefficient);
 }
 
+bool SettingsDialog::isShowTemperature() const { return m_showTempCheck->isChecked(); }
+bool SettingsDialog::isShowHeartRate() const    { return m_showHrCheck->isChecked(); }
+bool SettingsDialog::isShowBloodOxygen() const  { return m_showSpo2Check->isChecked(); }
+
 void SettingsDialog::onTestMqttClicked()
 {
     emit mqttTestRequested(m_mqttHostEdit->text(), m_mqttPortSpin->value(),
@@ -543,5 +580,9 @@ void SettingsDialog::onResetDefaults()
         
         m_ecgFilterEnabledCheck->setChecked(true);
         m_ecgFilterCoefficientSpin->setValue(0.25);
+
+        m_showTempCheck->setChecked(true);
+        m_showHrCheck->setChecked(true);
+        m_showSpo2Check->setChecked(true);
     }
 }

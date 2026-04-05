@@ -54,6 +54,7 @@ private:
     void updateConnectionStatus(bool connected);
     void updateVitalDisplay(const QString& type, double value, const QString& unit);
     void showAlarmIndicator(bool show);
+    void applyDisplaySettings();
     
     QWidget* createVitalCard(const QString& title, const QString& value, 
                               const QString& unit, const QColor& color, 
@@ -92,6 +93,14 @@ private:
     QPushButton* m_acknowledgeButton;
     QPushButton* m_simulateButton;
     
+    // Vital card widgets (for show/hide)
+    QWidget* m_tempCard = nullptr;
+    QWidget* m_hrCard = nullptr;
+    QWidget* m_spo2Card = nullptr;
+
+    // MQTT status badge (top center)
+    QLabel* m_mqttStatusBadge = nullptr;
+
     // Alarm indicator
     QFrame* m_alarmFrame;
     QLabel* m_alarmLabel;

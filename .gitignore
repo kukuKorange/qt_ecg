@@ -2,7 +2,7 @@
 build/
 cmake-build-*/
 out/
-
+release_pkg/
 # Qt generated files
 *.moc
 moc_*.cpp
@@ -71,3 +71,5 @@ Makefile
 .DS_Store
 Thumbs.db
 desktop.ini
+
+*.zip

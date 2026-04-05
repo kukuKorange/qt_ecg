@@ -57,6 +57,11 @@ public:
     double getEcgFilterCoefficient() const;
     void setEcgFilterSettings(bool enabled, double coefficient);
 
+    // 显示信息选择
+    bool isShowTemperature() const;
+    bool isShowHeartRate() const;
+    bool isShowBloodOxygen() const;
+
 signals:
     void settingsChanged();
     void mqttTestRequested(const QString& host, quint16 port,
@@ -105,7 +110,12 @@ private:
     // 显示设置控件
     QSpinBox* m_ecgDurationSpin;
     QComboBox* m_vitalsRangeCombo;
-    
+
+    // 显示信息选择控件
+    QCheckBox* m_showTempCheck;
+    QCheckBox* m_showHrCheck;
+    QCheckBox* m_showSpo2Check;
+
     // ECG滤波控件
     QCheckBox* m_ecgFilterEnabledCheck;
     QDoubleSpinBox* m_ecgFilterCoefficientSpin;

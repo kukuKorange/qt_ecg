@@ -123,11 +123,29 @@ void MainWindow::setupUI()
     m_simulateButton = new QPushButton(QStringLiteral("模拟"));
     m_simulateButton->setFixedWidth(80);
     toolbar->addWidget(m_simulateButton);
-    
-    QWidget* spacer = new QWidget();
-    spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-    toolbar->addWidget(spacer);
-    
+
+    QWidget* spacer1 = new QWidget();
+    spacer1->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer1);
+
+    // MQTT 状态居中显示
+    m_mqttStatusBadge = new QLabel(QStringLiteral("● 未连接"));
+    m_mqttStatusBadge->setAlignment(Qt::AlignCenter);
+    m_mqttStatusBadge->setStyleSheet(R"(
+        color: #e74c3c;
+        font-size: 13px;
+        font-weight: bold;
+        padding: 4px 14px;
+        background-color: #16213e;
+        border-radius: 8px;
+        border: 1px solid #2a4a6a;
+    )");
+    toolbar->addWidget(m_mqttStatusBadge);
+
+    QWidget* spacer2 = new QWidget();
+    spacer2->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    toolbar->addWidget(spacer2);
+
     m_settingsButton = new QPushButton(QStringLiteral("设置"));
     m_settingsButton->setFixedWidth(80);
     toolbar->addWidget(m_settingsButton);
@@ -144,34 +162,30 @@ void MainWindow::setupUI()
     mainLayout->setSpacing(16);
     mainLayout->setContentsMargins(16, 16, 16, 16);
     
-    // 生命体征卡片区域
+    // 生命体征卡片区域 — 一行显示
     QWidget* vitalsWidget = new QWidget();
-    QGridLayout* vitalsGrid = new QGridLayout(vitalsWidget);
-    vitalsGrid->setSpacing(12);
-    vitalsGrid->setContentsMargins(0, 0, 0, 0);
-    
+    QHBoxLayout* vitalsLayout = new QHBoxLayout(vitalsWidget);
+    vitalsLayout->setSpacing(10);
+    vitalsLayout->setContentsMargins(0, 0, 0, 0);
+
     // 体温卡片
-    QWidget* tempCard = createVitalCard(
+    m_tempCard = createVitalCard(
         QStringLiteral("体温"), "--.-", QStringLiteral("°C"),
         QColor("#e74c3c"), &m_tempValueLabel);
-    vitalsGrid->addWidget(tempCard, 0, 0);
-    
+    vitalsLayout->addWidget(m_tempCard, 1);
+
     // 心率卡片
-    QWidget* hrCard = createVitalCard(
+    m_hrCard = createVitalCard(
         QStringLiteral("心率"), "---", QStringLiteral("bpm"),
         QColor("#3498db"), &m_hrValueLabel);
-    vitalsGrid->addWidget(hrCard, 0, 1);
-    
+    vitalsLayout->addWidget(m_hrCard, 1);
+
     // 血氧卡片
-    QWidget* spo2Card = createVitalCard(
+    m_spo2Card = createVitalCard(
         QStringLiteral("血氧"), "---", QStringLiteral("%"),
         QColor("#2ecc71"), &m_spo2ValueLabel);
-    vitalsGrid->addWidget(spo2Card, 1, 0);
-    
-    // 状态卡片
-    QWidget* statusCard = createStatusCard();
-    vitalsGrid->addWidget(statusCard, 1, 1);
-    
+    vitalsLayout->addWidget(m_spo2Card, 1);
+
     mainLayout->addWidget(vitalsWidget);
     
     // 心电图区域
@@ -262,8 +276,8 @@ QWidget* MainWindow::createVitalCard(const QString& title, const QString& value,
     )").arg(color.name()));
     
     QVBoxLayout* layout = new QVBoxLayout(card);
-    layout->setContentsMargins(16, 16, 16, 16);
-    layout->setSpacing(8);
+    layout->setContentsMargins(10, 12, 10, 12);
+    layout->setSpacing(6);
     
     // 标题
     QLabel* titleLabel = new QLabel(title);
@@ -278,7 +292,7 @@ QWidget* MainWindow::createVitalCard(const QString& title, const QString& value,
     *valueLabel = new QLabel(value);
     (*valueLabel)->setStyleSheet(QString(R"(
         color: %1;
-        font-size: 36px;
+        font-size: 28px;
         font-weight: bold;
         font-family: "Consolas", "Monaco", monospace;
     )").arg(color.name()));
@@ -397,6 +411,8 @@ void MainWindow::loadSettings()
     // ECG滤波设置
     m_ecgChart->setFilterEnabled(settings.value("ecg/filterEnabled", true).toBool());
     m_ecgChart->setFilterCoefficient(settings.value("ecg/filterCoefficient", 0.25).toDouble());
+
+    applyDisplaySettings();
 }
 
 void MainWindow::saveSettings()
@@ -424,11 +440,13 @@ void MainWindow::onMqttError(const QString& error)
 void MainWindow::onMqttStatusChanged(const QString& status)
 {
     m_connectionStatusLabel->setText(status);
+    if (m_mqttStatusBadge) {
+        m_mqttStatusBadge->setText(QStringLiteral("● ") + status);
+    }
 }
 
 void MainWindow::updateConnectionStatus(bool connected)
 {
-    // 更新状态栏
     if (connected) {
         m_connectionStatusLabel->setText(QStringLiteral("已连接"));
         m_connectButton->setText(QStringLiteral("断开"));
@@ -442,19 +460,35 @@ void MainWindow::updateConnectionStatus(bool connected)
                 font-weight: bold;
             }
         )");
+        if (m_mqttStatusBadge) {
+            m_mqttStatusBadge->setText(QStringLiteral("● MQTT 已连接"));
+            m_mqttStatusBadge->setStyleSheet(R"(
+                color: #2ecc71;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 4px 14px;
+                background-color: #16213e;
+                border-radius: 8px;
+                border: 1px solid #2ecc71;
+            )");
+        }
     } else {
         m_connectionStatusLabel->setText(QStringLiteral("未连接"));
         m_connectButton->setText(QStringLiteral("连接"));
         m_connectButton->setStyleSheet("");
         m_connectButton->setObjectName("connectBtn");
-    }
-    
-    // 更新状态卡片中的指示点
-    QLabel* connDot = findChild<QLabel*>("connDot");
-    if (connDot) {
-        connDot->setStyleSheet(connected ? 
-            "color: #2ecc71; font-size: 12px;" : 
-            "color: #e74c3c; font-size: 12px;");
+        if (m_mqttStatusBadge) {
+            m_mqttStatusBadge->setText(QStringLiteral("● MQTT 未连接"));
+            m_mqttStatusBadge->setStyleSheet(R"(
+                color: #e74c3c;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 4px 14px;
+                background-color: #16213e;
+                border-radius: 8px;
+                border: 1px solid #2a4a6a;
+            )");
+        }
     }
 }
 
@@ -566,6 +600,8 @@ void MainWindow::onSettingsClicked()
         // 应用ECG滤波设置
         m_ecgChart->setFilterEnabled(dialog.isEcgFilterEnabled());
         m_ecgChart->setFilterCoefficient(dialog.getEcgFilterCoefficient());
+
+        applyDisplaySettings();
     }
 }
 
@@ -649,6 +685,18 @@ void MainWindow::onSimulationTimer()
         int spo2 = 96 + QRandomGenerator::global()->bounded(4);
         onBloodOxygenReceived(spo2);
     }
+}
+
+void MainWindow::applyDisplaySettings()
+{
+    QSettings settings("HealthMonitor", "QtECG");
+    bool showTemp = settings.value("display/showTemp", true).toBool();
+    bool showHr   = settings.value("display/showHr",   true).toBool();
+    bool showSpo2 = settings.value("display/showSpo2", true).toBool();
+
+    if (m_tempCard) m_tempCard->setVisible(showTemp);
+    if (m_hrCard)   m_hrCard->setVisible(showHr);
+    if (m_spo2Card) m_spo2Card->setVisible(showSpo2);
 }
 
 void MainWindow::updateVitalDisplay(const QString& type, double value, const QString& unit)
