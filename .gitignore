@@ -3,6 +3,7 @@ build/
 cmake-build-*/
 out/
 release_pkg/
+.vscode/
 # Qt generated files
 *.moc
 moc_*.cpp

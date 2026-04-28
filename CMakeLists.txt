@@ -30,6 +30,7 @@ set(SOURCES
     src/settingsdialog.cpp
     src/cloudsyncer.cpp
     src/alarmmanager.cpp
+    src/rpeakdetector.cpp
 )
 
 set(HEADERS
@@ -43,6 +44,7 @@ set(HEADERS
     src/cloudsyncer.h
     src/alarmmanager.h
     src/vitaldata.h
+    src/rpeakdetector.h
 )
 
 set(RESOURCES

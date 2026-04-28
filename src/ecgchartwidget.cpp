@@ -10,22 +10,26 @@ EcgChartWidget::EcgChartWidget(QWidget* parent)
     , m_chartView(new QChartView(this))
     , m_chart(new QChart())
     , m_series(new QLineSeries())
+    , m_rpeakSeries(new QScatterSeries())
     , m_axisX(new QValueAxis())
     , m_axisY(new QValueAxis())
     , m_playbackTimer(new QTimer(this))
     , m_lineColor(QColor("#00ff88"))
     , m_backgroundColor(QColor("#0a1628"))
     , m_gridColor(QColor("#1a3a5c"))
+    , m_rpeakDetector(new RPeakDetector(this))
 {
     setupChart();
-    
+
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(m_chartView);
-    
+
     m_maxPoints = m_displayDuration * m_sampleRate;
-    
+    m_rpeakDetector->setSampleRate(m_sampleRate);
+
     connect(m_playbackTimer, &QTimer::timeout, this, &EcgChartWidget::onPlaybackTimer);
+    connect(m_rpeakDetector, &RPeakDetector::heartRateUpdated, this, &EcgChartWidget::heartRateFromEcg);
 }
 
 EcgChartWidget::~EcgChartWidget()
@@ -47,6 +51,13 @@ void EcgChartWidget::setupChart()
     pen.setWidth(2);
     m_series->setPen(pen);
     m_chart->addSeries(m_series);
+
+    // 配置R波标记点
+    m_rpeakSeries->setMarkerShape(QScatterSeries::MarkerShapeCircle);
+    m_rpeakSeries->setMarkerSize(10);
+    m_rpeakSeries->setColor(QColor("#ff4444"));
+    m_rpeakSeries->setBorderColor(QColor("#ff8888"));
+    m_chart->addSeries(m_rpeakSeries);
     
     // 配置X轴
     m_axisX->setRange(0, m_displayDuration);
@@ -60,6 +71,7 @@ void EcgChartWidget::setupChart()
     m_axisX->setMinorTickCount(4);  // 次刻度
     m_chart->addAxis(m_axisX, Qt::AlignBottom);
     m_series->attachAxis(m_axisX);
+    m_rpeakSeries->attachAxis(m_axisX);
     
     // 配置Y轴 - ADC转换后范围约 -1650mV 到 +1650mV
     m_axisY->setRange(-500.0, 500.0);  // 默认显示 ±500mV
@@ -72,6 +84,7 @@ void EcgChartWidget::setupChart()
     m_axisY->setTickCount(11);  // 每100mV一个刻度
     m_chart->addAxis(m_axisY, Qt::AlignLeft);
     m_series->attachAxis(m_axisY);
+    m_rpeakSeries->attachAxis(m_axisY);
     
     // 配置图表视图
     m_chartView->setChart(m_chart);
@@ -83,17 +96,23 @@ void EcgChartWidget::addDataPoint(double value)
 {
     // 应用低通滤波
     double filteredValue = applyLowPassFilter(value);
-    
+
     double x = static_cast<double>(m_currentIndex) / m_sampleRate;
     m_series->append(x, filteredValue);
     m_currentIndex++;
-    
+
+    // R波检测 (使用滤波后的值)
+    if (m_rpeakEnabled) {
+        m_rpeakDetector->processSample(filteredValue);
+    }
+
     // 限制显示点数
     while (m_series->count() > m_maxPoints) {
         m_series->remove(0);
     }
-    
+
     updateAxisRange();
+    updateRPeakMarkers();
 }
 
 void EcgChartWidget::addDataPoints(const QVector<double>& values)
@@ -101,29 +120,39 @@ void EcgChartWidget::addDataPoints(const QVector<double>& values)
     for (double value : values) {
         // 应用低通滤波
         double filteredValue = applyLowPassFilter(value);
-        
+
         double x = static_cast<double>(m_currentIndex) / m_sampleRate;
         m_series->append(x, filteredValue);
         m_currentIndex++;
+
+        // R波检测
+        if (m_rpeakEnabled) {
+            m_rpeakDetector->processSample(filteredValue);
+        }
     }
-    
+
     // 限制显示点数
     while (m_series->count() > m_maxPoints) {
         m_series->remove(0);
     }
-    
+
     updateAxisRange();
+    updateRPeakMarkers();
 }
 
 void EcgChartWidget::clear()
 {
     m_series->clear();
+    m_rpeakSeries->clear();
     m_currentIndex = 0;
     m_axisX->setRange(0, m_displayDuration);
-    
+
     // 重置滤波器状态
     m_filterInitialized = false;
     m_lastFilteredValue = 0.0;
+
+    // 重置R波检测器
+    m_rpeakDetector->reset();
 }
 
 void EcgChartWidget::setDisplayDuration(int seconds)
@@ -137,6 +166,7 @@ void EcgChartWidget::setSampleRate(int samplesPerSecond)
 {
     m_sampleRate = samplesPerSecond;
     m_maxPoints = m_displayDuration * m_sampleRate;
+    m_rpeakDetector->setSampleRate(samplesPerSecond);
 }
 
 void EcgChartWidget::setGridVisible(bool visible)
@@ -251,6 +281,36 @@ void EcgChartWidget::setFilterCoefficient(double alpha)
 {
     // 限制系数范围在 0.01 到 1.0 之间
     m_filterAlpha = qBound(0.01, alpha, 1.0);
+}
+
+void EcgChartWidget::setRPeakDetectionEnabled(bool enabled)
+{
+    m_rpeakEnabled = enabled;
+    m_rpeakSeries->setVisible(enabled);
+    if (!enabled) {
+        m_rpeakSeries->clear();
+        m_rpeakDetector->reset();
+    }
+}
+
+void EcgChartWidget::updateRPeakMarkers()
+{
+    if (!m_rpeakEnabled) return;
+
+    // 获取当前显示的X轴范围
+    double xMin = m_axisX->min();
+    double xMax = m_axisX->max();
+
+    // 重建可见范围内的R波标记
+    m_rpeakSeries->clear();
+    const auto& peaks = m_rpeakDetector->detectedPeaks();
+    for (int i = peaks.size() - 1; i >= 0; --i) {
+        double t = peaks[i].timestamp;
+        if (t < xMin) break;
+        if (t <= xMax) {
+            m_rpeakSeries->append(t, peaks[i].amplitude);
+        }
+    }
 }
 
 double EcgChartWidget::applyLowPassFilter(double rawValue)

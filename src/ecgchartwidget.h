@@ -2,9 +2,11 @@
 #include <QWidget>
 #include <QtCharts/QChartView>
 #include <QtCharts/QLineSeries>
+#include <QtCharts/QScatterSeries>
 #include <QtCharts/QValueAxis>
 #include <QTimer>
 #include <QVector>
+#include "rpeakdetector.h"
 
 class EcgChartWidget : public QWidget {
     Q_OBJECT
@@ -36,8 +38,14 @@ public:
     bool isFilterEnabled() const { return m_filterEnabled; }
     double getFilterCoefficient() const { return m_filterAlpha; }
 
+    // R波检测
+    void setRPeakDetectionEnabled(bool enabled);
+    bool isRPeakDetectionEnabled() const { return m_rpeakEnabled; }
+    RPeakDetector* rPeakDetector() const { return m_rpeakDetector; }
+
 signals:
     void playbackFinished();
+    void heartRateFromEcg(int bpm);
 
 private slots:
     void onPlaybackTimer();
@@ -49,6 +57,7 @@ private:
     QChartView* m_chartView;
     QChart* m_chart;
     QLineSeries* m_series;
+    QScatterSeries* m_rpeakSeries;  // R波标记点
     QValueAxis* m_axisX;
     QValueAxis* m_axisY;
     
@@ -73,4 +82,9 @@ private:
     bool m_filterInitialized = false;
     
     double applyLowPassFilter(double rawValue);
+
+    // R波检测
+    RPeakDetector* m_rpeakDetector;
+    bool m_rpeakEnabled = true;
+    void updateRPeakMarkers();
 };
