@@ -379,6 +379,13 @@ void MainWindow::setupConnections()
     connect(m_acknowledgeButton, &QPushButton::clicked, this, &MainWindow::onAcknowledgeAlarmClicked);
     connect(m_simulateButton, &QPushButton::clicked, this, &MainWindow::onSimulateDataClicked);
     
+    // ECG R波检测心率
+    connect(m_ecgChart, &EcgChartWidget::heartRateFromEcg, this, [this](int bpm) {
+        m_currentHr = bpm;
+        m_hrValueLabel->setText(QString::number(bpm));
+        m_alarmManager->checkHeartRate(bpm);
+    });
+
     // 定时器
     connect(m_updateTimer, &QTimer::timeout, this, &MainWindow::onUpdateTimer);
     connect(m_simulationTimer, &QTimer::timeout, this, &MainWindow::onSimulationTimer);
@@ -623,7 +630,7 @@ void MainWindow::onSimulateDataClicked()
     if (m_simulating) {
         m_simulateButton->setText(QStringLiteral("停止"));
         m_simulateButton->setStyleSheet("background-color: #e67e22;");
-        m_simulationTimer->start(40);
+        m_simulationTimer->start(50);  // 50ms × 10点/次 = 200Hz
     } else {
         m_simulateButton->setText(QStringLiteral("模拟"));
         m_simulateButton->setStyleSheet("");
@@ -640,48 +647,49 @@ void MainWindow::onSimulationTimer()
 {
     static int ecgCounter = 0;
     QVector<double> ecgData;
-    
-    for (int i = 0; i < 5; ++i) {
-        double t = m_simPhase;
+
+    // 每50ms产生10个点 = 200Hz, 与图表采样率一致
+    for (int i = 0; i < 10; ++i) {
+        double t = fmod(m_simPhase, 1.0);  // 一个心跳周期 (~60bpm)
         double value = 0;
-        
-        // P波
-        if (fmod(t, 1.0) < 0.1) {
-            value = 0.15 * qSin(M_PI * fmod(t, 1.0) / 0.1);
+
+        // P波 (0.00 - 0.10s): 心房去极化
+        if (t >= 0.02 && t < 0.12) {
+            value = 30.0 * qSin(M_PI * (t - 0.02) / 0.10);
         }
-        // QRS波群
-        else if (fmod(t, 1.0) >= 0.15 && fmod(t, 1.0) < 0.17) {
-            value = -0.2;
+        // Q波 (0.15 - 0.17s): QRS起始向下偏转
+        else if (t >= 0.15 && t < 0.17) {
+            value = -40.0 * qSin(M_PI * (t - 0.15) / 0.02);
         }
-        else if (fmod(t, 1.0) >= 0.17 && fmod(t, 1.0) < 0.20) {
-            value = 1.0 * qSin(M_PI * (fmod(t, 1.0) - 0.17) / 0.03);
+        // R波 (0.17 - 0.21s): 主峰, 尖锐向上
+        else if (t >= 0.17 && t < 0.21) {
+            value = 250.0 * qSin(M_PI * (t - 0.17) / 0.04);
         }
-        else if (fmod(t, 1.0) >= 0.20 && fmod(t, 1.0) < 0.22) {
-            value = -0.3;
+        // S波 (0.21 - 0.24s): QRS末尾向下
+        else if (t >= 0.21 && t < 0.24) {
+            value = -60.0 * qSin(M_PI * (t - 0.21) / 0.03);
         }
-        // T波
-        else if (fmod(t, 1.0) >= 0.30 && fmod(t, 1.0) < 0.45) {
-            value = 0.25 * qSin(M_PI * (fmod(t, 1.0) - 0.30) / 0.15);
+        // T波 (0.30 - 0.50s): 心室复极化, 较宽
+        else if (t >= 0.30 && t < 0.50) {
+            value = 50.0 * qSin(M_PI * (t - 0.30) / 0.20);
         }
-        
-        value += (QRandomGenerator::global()->bounded(100) - 50) / 500.0;
-        
+
+        // 加入少量噪声
+        value += (QRandomGenerator::global()->bounded(100) - 50) / 10.0;
+
         ecgData.append(value);
-        m_simPhase += 1.0 / 250.0;
+        m_simPhase += 1.0 / 200.0;  // 200Hz采样率
     }
-    
+
     m_ecgChart->addDataPoints(ecgData);
-    
+
     ecgCounter++;
-    if (ecgCounter >= 25) {
+    if (ecgCounter >= 20) {  // 每秒更新一次体征数据
         ecgCounter = 0;
-        
+
         double temp = 36.5 + QRandomGenerator::global()->bounded(100) / 100.0;
         onTemperatureReceived(temp);
-        
-        int hr = 70 + QRandomGenerator::global()->bounded(30);
-        onHeartRateReceived(hr);
-        
+
         int spo2 = 96 + QRandomGenerator::global()->bounded(4);
         onBloodOxygenReceived(spo2);
     }
