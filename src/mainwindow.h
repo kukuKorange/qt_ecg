@@ -55,6 +55,7 @@ private:
     void updateVitalDisplay(const QString& type, double value, const QString& unit);
     void showAlarmIndicator(bool show);
     void applyDisplaySettings();
+    void showEcgAnalysisReport();
     
     QWidget* createVitalCard(const QString& title, const QString& value, 
                               const QString& unit, const QColor& color, 

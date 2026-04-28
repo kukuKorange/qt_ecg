@@ -34,6 +34,35 @@ public:
     int currentHeartRate() const { return m_currentHR; }
     double lastRRInterval() const;
 
+    // 综合分析报告
+    struct AnalysisReport {
+        int totalPeaks = 0;
+        double durationSeconds = 0.0;
+        // 心率统计
+        double avgHR = 0.0;
+        double minHR = 0.0;
+        double maxHR = 0.0;
+        double stdHR = 0.0;
+        // R-R间期统计 (ms)
+        double avgRR = 0.0;
+        double minRR = 0.0;
+        double maxRR = 0.0;
+        double stdRR = 0.0;
+        // HRV指标
+        double sdnn = 0.0;    // R-R间期标准差 (ms)
+        double rmssd = 0.0;   // 相邻R-R间期差值的均方根 (ms)
+        double pnn50 = 0.0;   // 相邻R-R间期差值>50ms的百分比 (%)
+        // R波幅值
+        double avgAmplitude = 0.0;
+        double minAmplitude = 0.0;
+        double maxAmplitude = 0.0;
+        // 医学评估
+        QStringList findings;     // 发现的问题
+        QStringList suggestions;  // 建议
+    };
+
+    AnalysisReport generateReport() const;
+
 signals:
     void rPeakDetected(const RPeakInfo& peak);
     void heartRateUpdated(int bpm);

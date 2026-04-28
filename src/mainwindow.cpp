@@ -626,8 +626,10 @@ void MainWindow::onAcknowledgeAlarmClicked()
 void MainWindow::onSimulateDataClicked()
 {
     m_simulating = !m_simulating;
-    
+
     if (m_simulating) {
+        m_ecgChart->clear();
+        m_simPhase = 0.0;
         m_simulateButton->setText(QStringLiteral("停止"));
         m_simulateButton->setStyleSheet("background-color: #e67e22;");
         m_simulationTimer->start(50);  // 50ms × 10点/次 = 200Hz
@@ -635,6 +637,7 @@ void MainWindow::onSimulateDataClicked()
         m_simulateButton->setText(QStringLiteral("模拟"));
         m_simulateButton->setStyleSheet("");
         m_simulationTimer->stop();
+        showEcgAnalysisReport();
     }
 }
 
@@ -712,4 +715,110 @@ void MainWindow::updateVitalDisplay(const QString& type, double value, const QSt
     Q_UNUSED(type)
     Q_UNUSED(value)
     Q_UNUSED(unit)
+}
+
+void MainWindow::showEcgAnalysisReport()
+{
+    RPeakDetector* detector = m_ecgChart->rPeakDetector();
+    if (!detector || detector->detectedPeaks().size() < 2) {
+        QMessageBox::information(this, QStringLiteral("ECG分析"),
+                                 QStringLiteral("数据不足，无法生成分析报告。\n请至少采集5秒以上的数据。"));
+        return;
+    }
+
+    auto report = detector->generateReport();
+
+    QString html;
+    html += QStringLiteral("<h2 style='color:#00d9ff;'>ECG R波分析报告</h2>");
+    html += QStringLiteral("<hr>");
+
+    // 基本信息
+    html += QStringLiteral("<h3>基本信息</h3>");
+    html += QStringLiteral("<table cellpadding='4'>");
+    html += QStringLiteral("<tr><td><b>检测到R波数:</b></td><td>%1 个</td></tr>").arg(report.totalPeaks);
+    html += QStringLiteral("<tr><td><b>分析时长:</b></td><td>%1 秒</td></tr>").arg(report.durationSeconds, 0, 'f', 1);
+    html += QStringLiteral("</table>");
+
+    // 心率统计
+    html += QStringLiteral("<h3>心率统计</h3>");
+    html += QStringLiteral("<table cellpadding='4'>");
+    html += QStringLiteral("<tr><td><b>平均心率:</b></td><td>%1 bpm</td></tr>").arg(report.avgHR, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>最低心率:</b></td><td>%1 bpm</td></tr>").arg(report.minHR, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>最高心率:</b></td><td>%1 bpm</td></tr>").arg(report.maxHR, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>心率标准差:</b></td><td>%1 bpm</td></tr>").arg(report.stdHR, 0, 'f', 2);
+    html += QStringLiteral("</table>");
+
+    // R-R间期
+    html += QStringLiteral("<h3>R-R间期分析</h3>");
+    html += QStringLiteral("<table cellpadding='4'>");
+    html += QStringLiteral("<tr><td><b>平均R-R间期:</b></td><td>%1 ms</td></tr>").arg(report.avgRR, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>最短R-R间期:</b></td><td>%1 ms</td></tr>").arg(report.minRR, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>最长R-R间期:</b></td><td>%1 ms</td></tr>").arg(report.maxRR, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>R-R间期标准差:</b></td><td>%1 ms</td></tr>").arg(report.stdRR, 0, 'f', 2);
+    html += QStringLiteral("</table>");
+
+    // HRV指标
+    html += QStringLiteral("<h3>心率变异性 (HRV)</h3>");
+    html += QStringLiteral("<table cellpadding='4'>");
+    html += QStringLiteral("<tr><td><b>SDNN:</b></td><td>%1 ms</td><td style='color:#8892b0;'>R-R间期标准差</td></tr>").arg(report.sdnn, 0, 'f', 2);
+    html += QStringLiteral("<tr><td><b>RMSSD:</b></td><td>%1 ms</td><td style='color:#8892b0;'>相邻R-R差值均方根</td></tr>").arg(report.rmssd, 0, 'f', 2);
+    html += QStringLiteral("<tr><td><b>pNN50:</b></td><td>%1 %</td><td style='color:#8892b0;'>差值>50ms的百分比</td></tr>").arg(report.pnn50, 0, 'f', 1);
+    html += QStringLiteral("</table>");
+
+    // R波幅值
+    html += QStringLiteral("<h3>R波幅值</h3>");
+    html += QStringLiteral("<table cellpadding='4'>");
+    html += QStringLiteral("<tr><td><b>平均幅值:</b></td><td>%1 mV</td></tr>").arg(report.avgAmplitude, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>最小幅值:</b></td><td>%1 mV</td></tr>").arg(report.minAmplitude, 0, 'f', 1);
+    html += QStringLiteral("<tr><td><b>最大幅值:</b></td><td>%1 mV</td></tr>").arg(report.maxAmplitude, 0, 'f', 1);
+    html += QStringLiteral("</table>");
+
+    // 医学评估
+    html += QStringLiteral("<h3 style='color:#f39c12;'>医学评估</h3>");
+    for (const QString& finding : report.findings) {
+        QString color = "#2ecc71";  // 绿色=正常
+        if (finding.contains(QStringLiteral("过缓")) || finding.contains(QStringLiteral("过速")) ||
+            finding.contains(QStringLiteral("早搏")) || finding.contains(QStringLiteral("不齐")) ||
+            finding.contains(QStringLiteral("偏低")) || finding.contains(QStringLiteral("变异较大"))) {
+            color = "#e74c3c";  // 红色=异常
+        }
+        html += QStringLiteral("<p style='color:%1;'>%2</p>").arg(color, finding);
+    }
+
+    // 建议
+    html += QStringLiteral("<h3 style='color:#3498db;'>建议</h3>");
+    for (const QString& suggestion : report.suggestions) {
+        html += QStringLiteral("<p>%1</p>").arg(suggestion);
+    }
+
+    html += QStringLiteral("<hr><p style='color:#8892b0; font-size:11px;'>"
+                           "注: 本分析仅供参考，不构成医学诊断。如有异常请咨询专业医生。</p>");
+
+    // 使用QMessageBox显示报告
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(QStringLiteral("ECG R波分析报告"));
+    msgBox.setTextFormat(Qt::RichText);
+    msgBox.setText(html);
+    msgBox.setStyleSheet(R"(
+        QMessageBox {
+            background-color: #1a1a2e;
+        }
+        QMessageBox QLabel {
+            color: #eaeaea;
+            min-width: 480px;
+            min-height: 400px;
+        }
+        QPushButton {
+            background-color: #1f4068;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 24px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #2a5a8c;
+        }
+    )");
+    msgBox.exec();
 }

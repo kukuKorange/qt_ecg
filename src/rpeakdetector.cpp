@@ -282,3 +282,153 @@ double RPeakDetector::lastRRInterval() const
     if (m_peaks.size() < 2) return 0.0;
     return m_peaks.last().rrInterval;
 }
+
+RPeakDetector::AnalysisReport RPeakDetector::generateReport() const
+{
+    AnalysisReport report;
+    report.totalPeaks = m_peaks.size();
+
+    if (m_peaks.size() < 2) {
+        report.findings.append(QStringLiteral("数据不足，无法进行有效分析（至少需要2个R波）"));
+        return report;
+    }
+
+    report.durationSeconds = m_peaks.last().timestamp - m_peaks.first().timestamp;
+
+    // ---- 收集有效的R-R间期和瞬时心率 ----
+    QVector<double> rrIntervals;  // 秒
+    QVector<double> heartRates;   // bpm
+    QVector<double> amplitudes;
+
+    for (int i = 0; i < m_peaks.size(); ++i) {
+        amplitudes.append(m_peaks[i].amplitude);
+        if (i > 0 && m_peaks[i].rrInterval > 0.0) {
+            rrIntervals.append(m_peaks[i].rrInterval);
+            heartRates.append(m_peaks[i].instantHR);
+        }
+    }
+
+    if (rrIntervals.isEmpty()) return report;
+
+    // ---- 心率统计 ----
+    double sumHR = std::accumulate(heartRates.begin(), heartRates.end(), 0.0);
+    report.avgHR = sumHR / heartRates.size();
+    report.minHR = *std::min_element(heartRates.begin(), heartRates.end());
+    report.maxHR = *std::max_element(heartRates.begin(), heartRates.end());
+
+    double sqSumHR = 0.0;
+    for (double hr : heartRates) sqSumHR += (hr - report.avgHR) * (hr - report.avgHR);
+    report.stdHR = qSqrt(sqSumHR / heartRates.size());
+
+    // ---- R-R间期统计 (转ms) ----
+    QVector<double> rrMs;
+    for (double rr : rrIntervals) rrMs.append(rr * 1000.0);
+
+    double sumRR = std::accumulate(rrMs.begin(), rrMs.end(), 0.0);
+    report.avgRR = sumRR / rrMs.size();
+    report.minRR = *std::min_element(rrMs.begin(), rrMs.end());
+    report.maxRR = *std::max_element(rrMs.begin(), rrMs.end());
+
+    double sqSumRR = 0.0;
+    for (double rr : rrMs) sqSumRR += (rr - report.avgRR) * (rr - report.avgRR);
+    report.stdRR = qSqrt(sqSumRR / rrMs.size());
+
+    // ---- HRV 指标 ----
+    // SDNN: R-R间期标准差
+    report.sdnn = report.stdRR;
+
+    // RMSSD: 相邻R-R间期差值的均方根
+    double sumDiffSq = 0.0;
+    int nn50Count = 0;
+    for (int i = 1; i < rrMs.size(); ++i) {
+        double diff = rrMs[i] - rrMs[i - 1];
+        sumDiffSq += diff * diff;
+        if (qAbs(diff) > 50.0) nn50Count++;
+    }
+    if (rrMs.size() > 1) {
+        report.rmssd = qSqrt(sumDiffSq / (rrMs.size() - 1));
+        report.pnn50 = 100.0 * nn50Count / (rrMs.size() - 1);
+    }
+
+    // ---- R波幅值统计 ----
+    double sumAmp = std::accumulate(amplitudes.begin(), amplitudes.end(), 0.0);
+    report.avgAmplitude = sumAmp / amplitudes.size();
+    report.minAmplitude = *std::min_element(amplitudes.begin(), amplitudes.end());
+    report.maxAmplitude = *std::max_element(amplitudes.begin(), amplitudes.end());
+
+    // ============================================================
+    // 医学评估
+    // ============================================================
+
+    // -- 心率评估 --
+    if (report.avgHR < 60.0) {
+        report.findings.append(QStringLiteral("窦性心动过缓: 平均心率 %1 bpm (< 60 bpm)")
+                                   .arg(report.avgHR, 0, 'f', 1));
+        if (report.avgHR < 50.0) {
+            report.suggestions.append(QStringLiteral("心率显著偏低，建议进一步检查是否存在房室传导阻滞"));
+        } else {
+            report.suggestions.append(QStringLiteral("轻度心动过缓，运动员或睡眠状态可能属正常，如有头晕等症状建议就医"));
+        }
+    } else if (report.avgHR > 100.0) {
+        report.findings.append(QStringLiteral("窦性心动过速: 平均心率 %1 bpm (> 100 bpm)")
+                                   .arg(report.avgHR, 0, 'f', 1));
+        if (report.avgHR > 150.0) {
+            report.suggestions.append(QStringLiteral("心率过快，建议立即就医排除室上性心动过速等病因"));
+        } else {
+            report.suggestions.append(QStringLiteral("心率偏快，可能与运动、情绪、发热等有关，持续出现建议就医"));
+        }
+    } else {
+        report.findings.append(QStringLiteral("心率正常: 平均 %1 bpm (60-100 bpm)")
+                                   .arg(report.avgHR, 0, 'f', 1));
+    }
+
+    // -- 心率变异性评估 --
+    double rrVariation = (report.maxRR - report.minRR) / report.avgRR * 100.0;
+    if (rrVariation > 20.0) {
+        report.findings.append(QStringLiteral("R-R间期变异较大 (%.1f%%), 可能存在心律不齐")
+                                   .arg(rrVariation));
+        report.suggestions.append(QStringLiteral("建议进行24小时动态心电图(Holter)检查以明确心律失常类型"));
+    }
+
+    // -- SDNN 评估 --
+    if (report.sdnn < 50.0 && rrIntervals.size() >= 10) {
+        report.findings.append(QStringLiteral("HRV偏低: SDNN = %.1f ms (< 50 ms)").arg(report.sdnn));
+        report.suggestions.append(QStringLiteral("心率变异性偏低可能与自主神经功能下降有关，建议关注心血管健康"));
+    } else if (report.sdnn > 50.0 && report.sdnn < 100.0 && rrIntervals.size() >= 10) {
+        report.findings.append(QStringLiteral("HRV正常: SDNN = %.1f ms").arg(report.sdnn));
+    } else if (report.sdnn >= 100.0 && rrIntervals.size() >= 10) {
+        report.findings.append(QStringLiteral("HRV良好: SDNN = %.1f ms").arg(report.sdnn));
+    }
+
+    // -- R波幅值评估 --
+    double ampVariation = (report.maxAmplitude - report.minAmplitude);
+    if (report.avgAmplitude > 0 && ampVariation / report.avgAmplitude > 0.5) {
+        report.findings.append(QStringLiteral("R波幅值变异较大 (%.0f - %.0f mV), 注意电极接触")
+                                   .arg(report.minAmplitude).arg(report.maxAmplitude));
+    }
+
+    // -- 早搏检测 (R-R间期突然缩短>20%) --
+    int prematureCount = 0;
+    for (int i = 2; i < rrIntervals.size(); ++i) {
+        double prevAvg = (rrIntervals[i - 1] + rrIntervals[i - 2]) / 2.0;
+        if (prevAvg > 0 && rrIntervals[i] < prevAvg * 0.80) {
+            prematureCount++;
+        }
+    }
+    if (prematureCount > 0) {
+        report.findings.append(QStringLiteral("检测到 %1 次疑似早搏 (R-R间期突然缩短>20%)")
+                                   .arg(prematureCount));
+        if (prematureCount > 5) {
+            report.suggestions.append(QStringLiteral("频发早搏，建议心内科进一步评估"));
+        } else {
+            report.suggestions.append(QStringLiteral("偶发早搏，多数情况下无需特殊处理，如有症状建议就医"));
+        }
+    }
+
+    // -- 总结建议 --
+    if (report.suggestions.isEmpty()) {
+        report.suggestions.append(QStringLiteral("各项指标在正常范围内，请继续保持健康的生活方式"));
+    }
+
+    return report;
+}
